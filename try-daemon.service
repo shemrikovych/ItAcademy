@@ -1,0 +1,10 @@
+[Unit]
+Description=Foo
+
+[Service]
+ExecStart=/usr/sbin/try-daemon
+
+[Install]
+WantedBy=multi-user.target
+
+
