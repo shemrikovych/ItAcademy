@@ -1,70 +1,88 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-# All Vagrant configuration is done below. The "2" in Vagrant.configure
-# configures the configuration version (we support older styles for
-# backwards compatibility). Please don't change it unless you know what
-# you're doing.
-Vagrant.configure("2") do |config|
-  # The most common configuration options are documented and commented below.
-  # For a complete reference, please see the online documentation at
-  # https://docs.vagrantup.com.
+# Edit these
+hostname            = "vagrant.dev"
+server_ip           = "192.168.33.10"
+mysql_root_password = "root"
 
-  # Every Vagrant development environment requires a box. You can search for
-  # boxes at https://vagrantcloud.com/search.
-  config.vm.box = "precise32"
+Vagrant.configure(2) do |config|
+  # OS to install on VM
+  config.vm.box = "ubuntu/trusty64"
 
-  # Disable automatic box update checking. If you disable this, then
-  # boxes will only be checked for updates when the user runs
-  # `vagrant box outdated`. This is not recommended.
-  # config.vm.box_check_update = false
+  # Map local port 8080 to VM port 80
+  config.vm.network "forwarded_port", guest: 80, host: 8080
 
-  # Create a forwarded port mapping which allows access to a specific port
-  # within the machine from a port on the host machine. In the example below,
-  # accessing "localhost:8080" will access port 80 on the guest machine.
-  # NOTE: This will enable public access to the opened port
-  # config.vm.network "forwarded_port", guest: 80, host: 8080
+  # IP to access VM
+  config.vm.network "private_network", ip: server_ip
 
-  # Create a forwarded port mapping which allows access to a specific port
-  # within the machine from a port on the host machine and only allow access
-  # via 127.0.0.1 to disable public access
-  # config.vm.network "forwarded_port", guest: 80, host: 8080, host_ip: "127.0.0.1"
+  # Set up default hostname
+  config.vm.hostname = hostname
 
-  # Create a private network, which allows host-only access to the machine
-  # using a specific IP.
-  # config.vm.network "private_network", ip: "192.168.33.10"
+  # Sync current directory to "/var/www" directory on the VM
+  # also set sync implementation to NFS for better performance,
+  # if running on Windows or a non-NFS supported system just
+  # remove the last "," and the next 3 lines
+  config.vm.synced_folder ".", "/var/www",
+    id: "core",
+    :nfs => true,
+    :mount_options => ['nolock,vers=3,udp,noatime']
 
-  # Create a public network, which generally matched to bridged network.
-  # Bridged networks make the machine appear as another physical device on
-  # your network.
-  # config.vm.network "public_network"
+  config.vm.provider "virtualbox" do |vb|
+    # Set VM name
+    vb.name = "Vagrant Dev"
 
-  # Share an additional folder to the guest VM. The first argument is
-  # the path on the host to the actual folder. The second argument is
-  # the path on the guest to mount the folder. And the optional third
-  # argument is a set of non-required options.
-  # config.vm.synced_folder "../data", "/vagrant_data"
+    # Customize the amount of memory on the VM
+    vb.memory = "1024"
 
-  # Provider-specific configuration so you can fine-tune various
-  # backing providers for Vagrant. These expose provider-specific options.
-  # Example for VirtualBox:
-  #
-  # config.vm.provider "virtualbox" do |vb|
-  #   # Display the VirtualBox GUI when booting the machine
-  #   vb.gui = true
-  #
-  #   # Customize the amount of memory on the VM:
-  #   vb.memory = "1024"
-  # end
-  #
-  # View the documentation for the provider you are using for more
-  # information on available options.
+    # Customize # of CPUs
+    vb.cpus = 1
 
-  # Enable provisioning with a shell script. Additional provisioners such as
-  # Puppet, Chef, Ansible, Salt, and Docker are also available. Please see the
-  # documentation for more information about their specific syntax and use.
-  # config.vm.provision "shell", inline: <<-SHELL
-  #   apt-get update
-  #   apt-get install -y apache2
-  # SHELL
+    # Set the timesync threshold to 10 seconds, instead of the default 20 minutes.
+    # If the clock gets more than 15 minutes out of sync (due to your laptop going
+    # to sleep for instance) then some 3rd party services will reject requests.
+    vb.customize ["guestproperty", "set", :id, "/VirtualBox/GuestAdd/VBoxService/--timesync-set-threshold", 10000]
+
+    # Prevent VMs running on Ubuntu to lose internet connection
+    vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+    vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
+  end
+
+  # Update repository
+  config.vm.provision "shell", inline: "sudo apt-get update"
+
+  # Install base utilities
+  config.vm.provision "shell", inline: "sudo apt-get install -qq curl unzip git-core ack-grep software-properties-common build-essential"
+
+  # Install basic LAMP stack
+  # Apache
+  config.vm.provision "shell", inline: "sudo apt-get install -qq apache2"
+  # Enable mod_rewrite
+  config.vm.provision "shell", inline: "sudo a2enmod rewrite"
+  # Restart Apache
+  config.vm.provision "shell", inline: "sudo service apache2 restart"
+
+  # PHP
+  config.vm.provision "shell", inline: "sudo apt-get install -qq php5 php5-mysql php5-curl php5-gd php5-gmp php5-mcrypt php5-intl"
+  # Enable mcrypt
+  config.vm.provision "shell", inline: "sudo php5enmod mcrypt"
+  # Restart Apache
+  config.vm.provision "shell", inline: "sudo service apache2 restart"
+
+  # MySQL
+  # Set username and password to 'root'
+  config.vm.provision "shell", inline: "sudo debconf-set-selections <<< \"mysql-server mysql-server/root_password password #{mysql_root_password}\""
+  config.vm.provision "shell", inline: "sudo debconf-set-selections <<< \"mysql-server mysql-server/root_password_again password #{mysql_root_password}\""
+
+  # Install MySQL
+  config.vm.provision "shell", inline: "sudo apt-get install -qq mysql-server"
+
+  # Adding grant privileges to mysql root user from everywhere
+  # http://stackoverflow.com/questions/7528967/how-to-grant-mysql-privileges-in-a-bash-script
+  Q1  = "GRANT ALL ON *.* TO 'root'@'%' IDENTIFIED BY '#{mysql_root_password}' WITH GRANT OPTION;"
+  Q2  = "FLUSH PRIVILEGES;"
+  SQL = "#{Q1}#{Q2}"
+
+  config.vm.provision "shell", inline: "mysql -uroot -p#{mysql_root_password} -e \"#{SQL}\""
+
 end
