@@ -13,16 +13,16 @@ $ sudo do-release-upgrade
  **Installed  Terraform**
 
 ```
-sudo apt-get install wget
-wget https://releases.hashicorp.com/terraform/0.10.7/terraform_0.10.7_linux_386.zip
+$sudo apt-get install wget
+$wget https://releases.hashicorp.com/terraform/0.10.7/terraform_0.10.7_linux_386.zip
 $ sudo apt-get install unzip
 $ unzip terraform_0.10.7_linux_386.zip
-sudo mv terraform /usr/local/bin/
+$sudo mv terraform /usr/local/bin/
 ```
 
  **Created new user** 
 
-`add user lina`
+`$ add user lina`
 
 **Added into sudo group**
 
@@ -38,7 +38,7 @@ sudo mv terraform /usr/local/bin/
 
 **Installed ZSH** 
 
-`sudo apt install zsh`
+`$ sudo apt install zsh`
 
 **Created Systemd unit**
 
@@ -47,8 +47,8 @@ created try-daemon.service file in the /etc/systemd/system
 **Installed LAMP Stack**
 
 ```
-sudo apt install tasksel
-sudo tasksel install lamp-server
+$ sudo apt install tasksel
+$ sudo tasksel install lamp-server
 ```
 
 
